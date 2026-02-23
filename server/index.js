@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,8 +10,11 @@ console.log("Starting WhatsApp Bot Server...");
 
 app.use(bodyParser.json());
 
+// Serve static files from the frontend
+app.use(express.static(path.join(__dirname, '../restaurant-bot-web/dist')));
+
 // Root route for health/status check
-app.get('/', (req, res) => {
+app.get('/status', (req, res) => {
   res.status(200).send('Whatsapp Chatbot API is running.');
 });
 
@@ -281,6 +285,16 @@ app.post('/send', async (req, res) => {
     res.json(response.data);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Wildcard route to serve index.html for unknown routes (SPA support)
+app.get('*', (req, res) => {
+  const indexPath = path.join(__dirname, '../restaurant-bot-web/dist/index.html');
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Frontend not built yet. Run build first.');
   }
 });
 
