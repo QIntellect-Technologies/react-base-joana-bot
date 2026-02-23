@@ -102,6 +102,23 @@ app.post('/webhook', async (req, res) => {
             msgBody = response.data.text;
             console.log("Real Transcription:", msgBody);
 
+            // GUARD: Check for repetitions or empty results
+            if (!msgBody || msgBody.trim().length === 0) {
+              throw new Error("Empty transcription");
+            }
+
+            // Simple Repetition Guard (e.g., "and and and")
+            const words = msgBody.split(/\s+/);
+            if (words.length > 5) {
+              const counts = {};
+              words.forEach(w => counts[w] = (counts[w] || 0) + 1);
+              const maxCount = Math.max(...Object.values(counts));
+              if (maxCount > words.length * 0.6) {
+                console.log("⚠️ Repetitive transcription detected, rejecting.");
+                throw new Error("Unreliable transcription (repetitive)");
+              }
+            }
+
             // Feedback for Real Transcription
             const feedbackUrl = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
             await axios.post(feedbackUrl, {
@@ -230,6 +247,16 @@ app.post('/webhook', async (req, res) => {
                     }
                   }))
                 }
+              }
+            };
+          } else if (reply && typeof reply === 'object' && reply.type === 'image') {
+            // WhatsApp image message
+            payload = {
+              messaging_product: 'whatsapp',
+              to: from,
+              type: 'image',
+              image: {
+                link: reply.link
               }
             };
           } else {
