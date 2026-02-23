@@ -12,6 +12,8 @@ app.use(bodyParser.json());
 
 // Serve static files from the frontend
 app.use(express.static(path.join(__dirname, '../restaurant-bot-web/dist')));
+// Serve static files from server public folder (for menu images)
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Root route for health/status check
 app.get('/status', (req, res) => {
@@ -128,67 +130,8 @@ app.post('/webhook', async (req, res) => {
             }, { headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } });
 
           } else {
-            // 2. TRY FREE VOSK (OFFLINE)
-            console.log("No API Key. Trying Vosk (Free/Offline)...");
-            const { transcribeAudio } = require('./speechToText');
-
-            // Need to download audio even for Vosk
-            const mediaResponse = await axios.get(
-              `https://graph.facebook.com/v18.0/${message.audio.id}`,
-              { headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` } }
-            );
-            const audioData = await axios.get(mediaResponse.data.url, {
-              headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` },
-              responseType: 'arraybuffer'
-            });
-
-            const session = botEngine.getSession(from);
-            let userLang = session ? (session.language || 'en') : 'en';
-            console.log(`Transcribing for ${from} in ${userLang}...`);
-
-            // 1. Try Primary Language
-            let voskText = await transcribeAudio(audioData.data, userLang);
-
-            // 2. Validate using NLP
-            const { advancedNLP } = require('./bot/advancedNLP');
-            let detected = advancedNLP(voskText, userLang);
-            const hasValidIntent = detected.some(d => d.type === 'ITEM' || d.type === 'CATEGORY');
-
-            // 3. SMART SWITCH: Only try other language if result is empty or non-sense
-            // If we got a decent sentence like "how about a month", DON'T try Arabic (prevents OOM)
-            const isVeryShort = !voskText || voskText.trim().length < 3;
-
-            if (!hasValidIntent && isVeryShort) {
-              const altLang = userLang === 'en' ? 'ar' : 'en';
-              console.log(`Primary transcription (${userLang}) empty. Trying ${altLang}...`);
-
-              // Small delay to allow memory cleanup
-              await new Promise(r => setTimeout(r, 500));
-
-              const altText = await transcribeAudio(audioData.data, altLang);
-              const altDetected = advancedNLP(altText, altLang);
-
-              if (altDetected.some(d => d.type === 'ITEM' || d.type === 'CATEGORY')) {
-                console.log(`Switching language to ${altLang} based on match: "${altText}"`);
-                voskText = altText;
-                userLang = altLang;
-                if (session) session.language = altLang;
-              }
-            }
-
-            if (voskText && voskText.trim().length > 0) {
-              msgBody = voskText;
-              console.log("Vosk Transcription:", msgBody);
-              // Feedback
-              const feedbackUrl = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
-              await axios.post(feedbackUrl, {
-                messaging_product: 'whatsapp',
-                to: from,
-                text: { body: `🎤 You said (Vosk): "${msgBody}"` }
-              }, { headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } });
-            } else {
-              throw new Error("Vosk failed or returned empty.");
-            }
+            // Vosk Fallback Removed
+            throw new Error("Cloud transcription failed and offline transcription is disabled.");
           }
         } catch (error) {
           console.log("Transcription failed:", error.message);
@@ -327,10 +270,4 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
-  try {
-    const downloadModel = require('./download_model');
-    await downloadModel();
-  } catch (err) {
-    console.error("Failed to download Vosk model:", err);
-  }
 });

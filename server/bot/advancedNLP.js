@@ -228,7 +228,7 @@ const textToNumber = (text) => {
 	const numbers = {
 		'one': 1, 'won': 1, 'on': 1, 'wall': 1,
 		'two': 2, 'to': 2, 'too': 2, 'through': 2,
-		'three': 3, 'tree': 3, 'free': 3, 'the': 3, 'they': 3,
+		'three': 3, 'tree': 3, 'free': 3,
 		'four': 4, 'for': 4, 'floor': 4,
 		'five': 5, 'hive': 5, 'fine': 5,
 		'six': 6, 'sex': 6, 'sticks': 6,

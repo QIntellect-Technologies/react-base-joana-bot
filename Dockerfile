@@ -1,51 +1,27 @@
-# Stage 1: Build the modern frontend (Requires Node 20+)
-FROM node:20-slim AS frontend-builder
+# Single-stage build for modern Node environment
+FROM node:22-slim
+
+# Install runtime dependencies (ffmpeg)
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-COPY package*.json ./
-COPY restaurant-bot-web/package*.json ./restaurant-bot-web/
-RUN npm install --workspace=restaurant-bot-web
+
+# Copy root configurations
+COPY package.json package-lock.json* ./
+COPY restaurant-bot-web/package.json ./restaurant-bot-web/
+COPY server/package.json ./server/
+
+# Install all dependencies (workspaces handle hoisting)
+RUN npm install
+
+# Copy source code
 COPY . .
+
+# Build frontend
 RUN npm run build --workspace=restaurant-bot-web
 
-# Stage 2: Build the backend (Requires Node 16 for ffi-napi/vosk stability)
-# Using bullseye-slim because buster-slim repositories are archived
-FROM node:16-bullseye-slim AS backend-builder
-
-# Install build dependencies for native modules
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-COPY package*.json ./
-COPY server/package*.json ./server/
-
-# Install server dependencies only
-RUN npm install --workspace=server
-
-# Production Image
-FROM node:16-bullseye-slim
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy source code first
-COPY . .
-
-# Copy built frontend from Stage 1
-COPY --from=frontend-builder /app/restaurant-bot-web/dist ./restaurant-bot-web/dist
-
-# Copy installed hoisted server modules from Stage 2
-COPY --from=backend-builder /app/node_modules ./node_modules
-
+# Expose port (Railway overrides this with PORT variable)
 EXPOSE 3000
 
-# Start the server
-CMD ["node", "server/index.js"]
+# Start application
+CMD ["npm", "start", "--workspace=server"]
