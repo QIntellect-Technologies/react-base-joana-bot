@@ -87,8 +87,17 @@ app.post('/webhook', async (req, res) => {
             // Create FormData for Whisper API
             const form = new FormData();
             form.append('file', Buffer.from(audioData.data), { filename: 'audio.ogg', contentType: 'audio/ogg' });
-            form.append('model', 'whisper-1');
-            if (process.env.GROQ_API_KEY) form.append('model', 'whisper-large-v3'); // Groq model
+
+            const model = process.env.GROQ_API_KEY ? 'whisper-large-v3' : 'whisper-1';
+            form.append('model', model);
+
+            // Guidance prompt based on current user language
+            const session = botEngine.getSession(from);
+            const userLang = session ? (session.language || 'en') : 'en';
+            const prompt = userLang === 'en'
+              ? "Transcribe in English."
+              : "Transcribe in Arabic.";
+            form.append('prompt', prompt);
 
             const transcribeUrl = process.env.GROQ_API_KEY
               ? 'https://api.groq.com/openai/v1/audio/transcriptions'
@@ -101,23 +110,34 @@ app.post('/webhook', async (req, res) => {
               }
             });
 
-            msgBody = response.data.text;
+            msgBody = (response.data.text || "").trim();
             console.log("Real Transcription:", msgBody);
 
-            // GUARD: Check for repetitions or empty results
-            if (!msgBody || msgBody.trim().length === 0) {
-              throw new Error("Empty transcription");
+            // GUARD: Check for empty results
+            if (!msgBody) {
+              throw new Error("Whisper returned empty transcription");
             }
 
-            // Simple Repetition Guard (e.g., "and and and")
-            const words = msgBody.split(/\s+/);
-            if (words.length > 5) {
-              const counts = {};
-              words.forEach(w => counts[w] = (counts[w] || 0) + 1);
-              const maxCount = Math.max(...Object.values(counts));
-              if (maxCount > words.length * 0.6) {
-                console.log("⚠️ Repetitive transcription detected, rejecting.");
-                throw new Error("Unreliable transcription (repetitive)");
+            // GUARD: Check for unsupported scripts (Language Guard)
+            // Allowed: English, Arabic, Digits, Common Punctuation
+            const allowedPattern = /[a-zA-Z0-9\u0600-\u06FF\s.,!?;:'"-]/g;
+            const cleaned = msgBody.replace(allowedPattern, "");
+            if (cleaned.length > msgBody.length * 0.2 && msgBody.length > 5) {
+              console.log("⚠️ REJECTED: Unsupported language detected:", msgBody);
+              throw new Error("Unsupported language detected. Please speak English or Arabic.");
+            }
+
+            // GUARD: Hallucinated repetitions (e.g. "and and and")
+            if (msgBody.length > 30) {
+              const words = msgBody.split(/\s+/);
+              if (words.length > 10) {
+                const wordCounts = {};
+                words.forEach(w => wordCounts[w] = (wordCounts[w] || 0) + 1);
+                const mostCommonWord = Object.keys(wordCounts).reduce((a, b) => wordCounts[a] > wordCounts[b] ? a : b);
+                if (wordCounts[mostCommonWord] > words.length * 0.5) {
+                  console.log("⚠️ REJECTED: Repetitive hallucination:", msgBody);
+                  throw new Error("Voice unclear (repetitive hallucination)");
+                }
               }
             }
 
@@ -130,38 +150,26 @@ app.post('/webhook', async (req, res) => {
             }, { headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } });
 
           } else {
-            // Vosk Fallback Removed
-            throw new Error("Cloud transcription failed and offline transcription is disabled.");
+            throw new Error("API Key (Groq/OpenAI) missing for transcription.");
           }
         } catch (error) {
-          console.log("Transcription failed:", error.message);
-          // FALLBACK TO SIMULATION IF NO KEY / ERROR
-          const userState = botEngine.getSession(from);
-          let mockText = "2 Burgers";
+          console.error("Transcription failed:", error.message);
+          // NO MORE SIMULATION - Send error feedback to user
+          const errorMsg = error.message.includes("Unsupported language") || error.message.includes("Voice unclear")
+            ? `⚠️ ${error.message}`
+            : "⚠️ Sorry, I couldn't understand your voice message. Please try speaking more clearly or type your order.";
 
-          if (userState.step === 'ITEM_SPICY') {
-            mockText = "Spicy";
-          } else if (userState.step === 'ITEM_QTY' || userState.step === 'ITEM_QTY_MANUAL') {
-            mockText = "2";
-          } else if (userState.step === 'ITEM_REMOVE_QTY') {
-            mockText = "1";
-          } else if (userState.step === 'ITEMS_LIST') {
-            mockText = "Beef Burger"; // Pick a valid item to advance flow
-          } else if (userState.step === 'PAYMENT') {
-            mockText = "Cash";
-          } else if (userState.step === 'CANCEL_MENU') {
-            mockText = "Cancel All";
+          try {
+            const feedbackUrl = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+            await axios.post(feedbackUrl, {
+              messaging_product: 'whatsapp',
+              to: from,
+              text: { body: errorMsg }
+            }, { headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } });
+          } catch (sendErr) {
+            console.error("Failed to send error feedback:", sendErr.message);
           }
-
-          // Reply with feedback (Simulated)
-          const feedbackUrl = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
-          await axios.post(feedbackUrl, {
-            messaging_product: 'whatsapp',
-            to: from,
-            text: { body: `🎤 You said: "${mockText}" (Simulated - Add OPENAI_API_KEY for Real Voice)` }
-          }, { headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } });
-
-          msgBody = mockText;
+          return res.sendStatus(200); // Stop processing this message
         }
       }
 
