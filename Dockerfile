@@ -8,7 +8,8 @@ COPY . .
 RUN npm run build --workspace=restaurant-bot-web
 
 # Stage 2: Build the backend (Requires Node 16 for ffi-napi/vosk stability)
-FROM node:16-slim AS backend-builder
+# Using bullseye-slim because buster-slim repositories are archived
+FROM node:16-bullseye-slim AS backend-builder
 
 # Install build dependencies for native modules
 RUN apt-get update && apt-get install -y \
@@ -26,7 +27,7 @@ COPY server/package*.json ./server/
 RUN npm install --workspace=server
 
 # Production Image
-FROM node:16-slim
+FROM node:16-bullseye-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
