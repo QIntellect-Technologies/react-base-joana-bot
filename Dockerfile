@@ -1,5 +1,5 @@
-# Use Node 22 for modern Vite/Tailwind compatibility
-FROM node:22-slim AS builder
+# Use Node 20 for stable native builds and modern framework compatibility
+FROM node:20-slim AS builder
 
 # Install build dependencies for native modules (vosk/ffi-napi)
 RUN apt-get update && apt-get install -y \
@@ -26,7 +26,7 @@ COPY . .
 RUN npm run build --workspace=restaurant-bot-web
 
 # Production Image
-FROM node:22-slim
+FROM node:20-slim
 
 # Install runtime dependencies (like ffmpeg which is used in server/index.js)
 RUN apt-get update && apt-get install -y \
