@@ -36,15 +36,14 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Copy source code first
+COPY . .
+
 # Copy built frontend from Stage 1
 COPY --from=frontend-builder /app/restaurant-bot-web/dist ./restaurant-bot-web/dist
 
-# Copy installed server modules from Stage 2
+# Copy installed hoisted server modules from Stage 2
 COPY --from=backend-builder /app/node_modules ./node_modules
-COPY --from=backend-builder /app/server/node_modules ./server/node_modules
-
-# Copy source code
-COPY . .
 
 EXPOSE 3000
 
