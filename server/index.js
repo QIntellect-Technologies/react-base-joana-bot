@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
+const FormData = require('form-data');
 const path = require('path');
 
 const app = express();
@@ -190,7 +191,7 @@ app.post('/webhook', async (req, res) => {
                 type: 'button',
                 body: { text: reply.body },
                 action: {
-                  buttons: reply.buttons.map((btn, idx) => ({
+                  buttons: reply.buttons.slice(0, 3).map((btn, idx) => ({
                     type: 'reply',
                     reply: {
                       id: btn.id || `btn_${idx + 1}`,
