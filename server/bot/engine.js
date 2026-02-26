@@ -218,6 +218,24 @@ function processMessage(userId, text) {
     const standardizedInput = applyTypoCorrection(normalizedInput, currentLang);
     let cleanText = standardizedInput.trim();
 
+    // 0. EXPLICIT PAYMENT KEYWORD DETECTION (Prioritized during PAYMENT step)
+    if (state.step === 'PAYMENT') {
+        const lowerInput = normalizedInput.toLowerCase();
+        if (currentLang === 'ar') {
+            if (lowerInput.includes('كاش') || lowerInput.includes('نقدي') || lowerInput.includes('عند الاستلام')) {
+                cleanText = 'pay_cash';
+            } else if (lowerInput.includes('اونلاين') || lowerInput.includes('أونلاين') || lowerInput.includes('شبكة') || lowerInput.includes('دفع')) {
+                cleanText = 'pay_online';
+            }
+        } else {
+            if (lowerInput.includes('cash') || lowerInput.includes('delivery') || lowerInput.includes('cod')) {
+                cleanText = 'pay_cash';
+            } else if (lowerInput.includes('online') || lowerInput.includes('card') || lowerInput.includes('pay') || lowerInput.includes('checkout')) {
+                cleanText = 'pay_online';
+            }
+        }
+    }
+
     // 1. INIT Logic (Prioritized to handle first message)
     if (state.step === 'INIT') {
         state.step = 'CATEGORY_SELECTION';

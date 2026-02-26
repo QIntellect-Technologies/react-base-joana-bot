@@ -226,14 +226,14 @@ const levenshtein = (a, b) => {
 
 const textToNumber = (text) => {
 	const numbers = {
-		'one': 1, 'won': 1, 'on': 1, 'wall': 1,
-		'two': 2, 'to': 2, 'too': 2, 'through': 2,
+		'one': 1, 'won': 1, 'wall': 1,
+		'two': 2, 'too': 2, 'through': 2,
 		'three': 3, 'tree': 3, 'free': 3,
 		'four': 4, 'for': 4, 'floor': 4,
 		'five': 5, 'hive': 5, 'fine': 5,
 		'six': 6, 'sex': 6, 'sticks': 6,
 		'seven': 7, 'heaven': 7,
-		'eight': 8, 'ate': 8, 'it': 8,
+		'eight': 8,
 		'nine': 9, 'line': 9,
 		'ten': 10, 'then': 10, 'than': 10,
 		'واحد': 1, 'واحدة': 1, 'اثنين': 2, 'اثنان': 2, 'ثلاثة': 3, 'ثلاث': 3,
@@ -435,7 +435,10 @@ const advancedNLP = (text, lang = 'en') => {
 				}
 			}
 
-			const STOP_WORDS = ['me', 'you', 'it', 'us', 'him', 'her', 'them', 'please', 'like', 'want', 'order', 'to', 'for', 'a', 'an', 'the', 'this', 'that', 'here', 'there', 'is', 'am', 'are', 'can', 'could', 'would', 'will'];
+			const STOP_WORDS = [
+				'me', 'you', 'it', 'us', 'him', 'her', 'them', 'please', 'like', 'want', 'order', 'to', 'for', 'a', 'an', 'the', 'this', 'that', 'here', 'there', 'is', 'am', 'are', 'can', 'could', 'would', 'will',
+				'go', 'with', 'way', 'option', 'choose', 'select', 'payment', 'pay', 'checkout', 'finish', 'complete', 'done', 'final', 'last', 'next', 'ok', 'okay', 'yes', 'no'
+			];
 
 			if (bestMatch) {
 				let finalQty = isOrder ? qty : null;
