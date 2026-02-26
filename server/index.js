@@ -69,9 +69,11 @@ app.post('/webhook', async (req, res) => {
 
         // 1. TRY REAL TRANSCRIPTION
         try {
-          const apiKey = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
+          const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
+          const isGroq = !!process.env.GROQ_API_KEY;
 
           if (apiKey) {
+            console.log(`🎤 Fetching WhatsApp media metadata for ID: ${message.audio.id}...`);
             // Fetch Media URL from WhatsApp
             const mediaResponse = await axios.get(
               `https://graph.facebook.com/v18.0/${message.audio.id}`,
@@ -79,6 +81,7 @@ app.post('/webhook', async (req, res) => {
             );
 
             const mediaUrl = mediaResponse.data.url;
+            console.log("📥 Downloading audio binary from WhatsApp...");
 
             // Download Audio Binary
             const audioData = await axios.get(mediaUrl, {
@@ -86,11 +89,13 @@ app.post('/webhook', async (req, res) => {
               responseType: 'arraybuffer'
             });
 
+            console.log(`✅ Downloaded ${audioData.data.byteLength} bytes. Transcribing via ${isGroq ? 'Groq' : 'OpenAI'}...`);
+
             // Create FormData for Whisper API
             const form = new FormData();
             form.append('file', Buffer.from(audioData.data), { filename: 'audio.ogg', contentType: 'audio/ogg' });
 
-            const model = process.env.GROQ_API_KEY ? 'whisper-large-v3' : 'whisper-1';
+            const model = isGroq ? 'whisper-large-v3' : 'whisper-1';
             form.append('model', model);
 
             // Guidance prompt based on current user language
@@ -101,14 +106,15 @@ app.post('/webhook', async (req, res) => {
               : "Transcribe in Arabic.";
             form.append('prompt', prompt);
 
-            const transcribeUrl = process.env.GROQ_API_KEY
+            const transcribeUrl = isGroq
               ? 'https://api.groq.com/openai/v1/audio/transcriptions'
               : 'https://api.openai.com/v1/audio/transcriptions';
 
+            console.log(`🤖 Sending to ${isGroq ? 'Groq' : 'OpenAI'} API...`);
             const response = await axios.post(transcribeUrl, form, {
               headers: {
                 ...form.getHeaders(),
-                'Authorization': `Bearer ${apiKey}`
+                'Authorization': `Bearer ${apiKey.trim()}`
               }
             });
 
